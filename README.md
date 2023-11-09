@@ -1,5 +1,5 @@
 # bvr logs
-*bvr collects logs at the dam to centralize availability.*
+bvr collects logs at the dam to centralize availability.
 ---
 ## Architecture
 **bvr logs** is composed of two applications written in **Go**.
