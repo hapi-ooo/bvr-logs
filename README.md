@@ -1,15 +1,13 @@
-# bvr logs
-bvr collects logs at the dam to centralize availability.
+# Bvr Logs
+Bvr collects logs at the dam to centralize availability.
 ## Architecture
 bvr logs is composed of two applications written in Go.
-- bvr client
-BvrClient expects a path to a log file when it is run. When it starts, it first 
+- BvrClient expects a path to a log file when it is run. When it starts, it first 
 connects to the server and sends the contents of the file. The file is kept
 open, and any additions to the file are read and sent to the server as well.
 bvr client consumes logs to send to bvr dam. Each time data is sent to the 
 server, the size of what is being sent is first written to the connection.
-- bvr dam
-BvrDam has an endpoint for BvrClient to send logs to. BvrDam listens on port 
+- BvrDam has an endpoint for BvrClient to send logs to. BvrDam listens on port 
 3000 for connections. It first checks the size of the incoming data, then 
 writes the specified amount to a buffer. At the moment it simply prints out the
 received data.
