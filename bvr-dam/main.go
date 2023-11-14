@@ -7,7 +7,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"strconv"
 )
 
 var (
@@ -38,13 +37,8 @@ func (fs *BvrDam) logPostHandler(w http.ResponseWriter, r *http.Request) {
     if r.Method != "POST" {
         w.WriteHeader(http.StatusMethodNotAllowed)
     }
-    // Get the content length so we know how many bytes to copy
-    contentLength, err := strconv.Atoi(r.Header.Get("Content-Length"))
-    if err != nil {
-        w.WriteHeader(http.StatusInternalServerError)
-    }
     // Get a buffer of the data in the request body
-    buf, err := fs.getRequestData(r.Body, int64(contentLength))
+    buf, err := fs.getRequestData(r.Body)
     if err != nil {
         w.WriteHeader(http.StatusInternalServerError)
     }
@@ -54,11 +48,11 @@ func (fs *BvrDam) logPostHandler(w http.ResponseWriter, r *http.Request) {
 
 // Read data from the request body --
 // Return a buffer containing the data or an error.
-func (fs *BvrDam) getRequestData(body io.ReadCloser, contentLength int64) (*bytes.Buffer, error) {
+func (fs *BvrDam) getRequestData(body io.ReadCloser) (*bytes.Buffer, error) {
     // Initialize buffer to read body into
     buf := new(bytes.Buffer)
     // Copy the received data to a buffer.
-    n, err := io.CopyN(buf, body, contentLength)
+    n, err := io.Copy(buf, body)
     if err != nil {
         return nil, err
     }

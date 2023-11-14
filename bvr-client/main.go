@@ -14,7 +14,6 @@ import (
 var (
     LogPath string
 )
-//"text/plain"
 func init() {
     flag.StringVar(&LogPath, "p", "", "Path to the log file")
     flag.Parse()
