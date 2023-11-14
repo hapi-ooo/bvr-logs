@@ -1,7 +1,7 @@
 # Bvr Logs
 Bvr collects logs at the dam to centralize availability.
 ## Architecture
-bvr logs is composed of two applications written in Go.
+Bvr Logs is composed of two applications written in Go.
 - BvrClient expects a path to a log file when it is run. When it starts, it first 
 connects to the server and sends the contents of the file. The file is kept
 open, and any additions to the file are read and sent to the server as well.
