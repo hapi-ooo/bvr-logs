@@ -2,73 +2,80 @@ package main
 
 import (
 	"bytes"
-	"encoding/binary"
+	"flag"
 	"fmt"
 	"io"
 	"log"
-	"net"
+	"net/http"
+	"strconv"
 )
 
-// Interface for the server program --
-type FileServer struct{}
+var (
+    // Command line parameters
+    port string
+)
 
-// Start the server --
-// Listen on port 3000.
-// For each connection, read from that connection.
-func (fs *FileServer) start() {
-    // Create a listener on port 3000
-    ln, err := net.Listen("tcp", ":3000")
-    if err != nil {
-        log.Fatal(err)
-    }
-    defer ln.Close()
-    // For each connection to the listener, read the data on that connection.
-    for {
-        // Create a new connection from the listener.
-        conn, err := ln.Accept()
-        if err != nil {
-            log.Fatal("Error creating a connection from the listener", err)
-        }
-        defer conn.Close()
-        // Read data from the connection
-        go fs.readLoop(conn)
-    }
+func init() {
+    // Process command line arguments
+    flag.StringVar(&port, "p", ":3010", "Address to host the server " +
+    "at. The default value is \":3010\".")
+    flag.Parse()
 }
 
-// Read data from the connection --
-// Get the size of the incoming data, then copy that data to a buffer.
-func (fs *FileServer) readLoop(conn net.Conn) {
-    // Create a buffer for the data read from the connection.
-    buf := new(bytes.Buffer)
-    // While there are no connection errors, read from the connection
-    for {
-        // Read the size of the incoming data.
-        // Break out of the loop if there is an error with the connection.
-        var size int64
-        err := binary.Read(conn, binary.LittleEndian, &size)
-        if err != nil {
-            fmt.Println("Connection error", err)
-            break
-        }
-        // If no data is received continue to check for data again.
-        if size == 0 {
-            continue
-        }
-        fmt.Println("Incoming data size:", size)
-        // Copy the received data to a buffer.
-        n, err := io.CopyN(buf, conn, size)
-        if err != nil {
-            log.Fatal(err)
-        }
-        fmt.Println(string(buf.Bytes()))
-        fmt.Printf("read %d bytes over the network\n", n)
-        // Reset the buffer.
-        buf = new(bytes.Buffer)
+// Interface for the server program --
+type BvrDam struct{
+    server *http.Server
+}
+
+// Returns a new BvrDam instance
+func newBvrDam(server *http.Server) *BvrDam {
+    return &BvrDam{ server: server }
+}
+
+// Handler that writes data to a file --
+func (fs *BvrDam) logPostHandler(w http.ResponseWriter, r *http.Request) {
+    // Return a 405 Method Not Allowed on anything but a POST request.
+    if r.Method != "POST" {
+        w.WriteHeader(http.StatusMethodNotAllowed)
     }
+    // Get the content length so we know how many bytes to copy
+    contentLength, err := strconv.Atoi(r.Header.Get("Content-Length"))
+    if err != nil {
+        w.WriteHeader(http.StatusInternalServerError)
+    }
+    // Get a buffer of the data in the request body
+    buf, err := fs.getRequestData(r.Body, int64(contentLength))
+    if err != nil {
+        w.WriteHeader(http.StatusInternalServerError)
+    }
+    fmt.Println("Data received:\n", string(buf.Bytes()))
+    // TODO Write the data to the corresponding log
+}
+
+// Read data from the request body --
+// Return a buffer containing the data or an error.
+func (fs *BvrDam) getRequestData(body io.ReadCloser, contentLength int64) (*bytes.Buffer, error) {
+    // Initialize buffer to read body into
+    buf := new(bytes.Buffer)
+    // Copy the received data to a buffer.
+    n, err := io.CopyN(buf, body, contentLength)
+    if err != nil {
+        return nil, err
+    }
+    fmt.Printf("%d bytes were read over the network\n", n)
+    // Return the buffer of data from the request body.
+    return buf, nil
 }
 
 func main() {
-    // Create and start a new BvrDam.
-    server := &FileServer{}
-    server.start()
+    // Create a new BvrDam.
+    dam := newBvrDam(&http.Server { Addr: port })
+
+    // Register the endpoint handlers
+    http.HandleFunc("/log", dam.logPostHandler)
+    http.HandleFunc("/", http.NotFound)
+
+    // Listen for requests
+    fmt.Printf("BvrDam running at localhost%s\n", port)
+    log.Fatal(dam.server.ListenAndServe())
 }

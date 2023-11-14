@@ -2,34 +2,37 @@ package main
 
 import (
 	"bytes"
-	"encoding/binary"
 	"flag"
 	"fmt"
 	"io"
 	"log"
-	"net"
+	"net/http"
 	"os"
 )
 
-// command line parameters
+// Command line parameters
 var (
     LogPath string
 )
-
+//"text/plain"
 func init() {
     flag.StringVar(&LogPath, "p", "", "Path to the log file")
     flag.Parse()
+    // Handle when no LogPath value is passed.
+    if LogPath == "" {
+        log.Fatal("No value for LogPath provided! Please pass a path to the log file with the '-p' flag")
+    }
 }
 
 // Interface for the client program --
 type BvrClient struct{
     buf *bytes.Buffer
-    conn net.Conn
+    http *http.Client
 }
 
 // Returns a new BvrClient instance --
-func newBvrClient(buf *bytes.Buffer, conn net.Conn) *BvrClient {
-    return &BvrClient{ buf: buf, conn: conn }
+func newBvrClient(buf *bytes.Buffer, http *http.Client) *BvrClient {
+    return &BvrClient{ buf: buf, http: http }
 }
 
 // Starts the client --
@@ -51,8 +54,8 @@ func (bc *BvrClient) start() {
 
 // Read the data and writes to the server -- 
 // Read the data until an error occurs.
-// Store the position we last read in the data to only look at new data
-// Send the bytes to the server when data is read
+// Store the position we last read in the data to only look at new data.
+// Send the bytes to the server when data is read.
 func (bc *BvrClient) readForever(r io.Reader) {
     // When new bytes are available, begin reading at startByte
     // initialized to the beginning of the byte slice.
@@ -69,43 +72,19 @@ func (bc *BvrClient) readForever(r io.Reader) {
         if n != 0 {
             // Read the number of bytes past the startByte.
             endByte := n + startByte
-            go bc.sendBytes(n, bc.buf.Bytes()[startByte:endByte])
+            // go bc.sendBytes(n, bc.buf.Bytes()[startByte:endByte])
+            // Create the request body
+            body := bytes.NewReader(bc.buf.Bytes()[startByte:endByte])
+            // POST the logs
+            bc.http.Post("http://localhost:3000/log", "text/plain", body)
             // Update the startByte to the end of what was read.
             startByte = endByte
         }
     }
 }
 
-// Send bytes to the server --
-// Write the size of the data we intend to send to the connection.
-// Write the data to the connection.
-// Returns an error if one occurred.
-func (bc *BvrClient) sendBytes(size int64, data []byte) error {
-    // First write the size of the data being sent.
-    err := binary.Write(bc.conn, binary.LittleEndian, size)
-    // Write the data we wish to send to the server.
-    n, err := io.CopyN(bc.conn, bytes.NewReader(data), size)
-    if err != nil {
-        return err
-    }
-    fmt.Printf("%d bytes have been written over the network.\n", n)
-    return nil
-}
-
 func main() {
-    // Handle when no LogPath value is passed.
-    if LogPath == "" {
-        log.Fatal("No value for LogPath provided! Please pass a path to the log file with the '-p' flag")
-    }
-
-    // Create a new connection to pass to the client.
-    conn, err := net.Dial("tcp", ":3000")
-    defer conn.Close()
-    if err != nil {
-        log.Fatal(err)
-    }
-
     // Create and start a new BvrClient.
-    client := newBvrClient(new(bytes.Buffer), conn)
+    client := newBvrClient(new(bytes.Buffer), &http.Client{})
     client.start()
 }
